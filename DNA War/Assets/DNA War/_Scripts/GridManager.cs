@@ -3,14 +3,11 @@ using UnityEngine;
 
 public class GridManager : MonoBehaviour
 {
-    [SerializeField] private int cellSize = 1;
-    [SerializeField] private int numOfColumns = 10;
-    [SerializeField] private int numOfRows = 10;
-
+    [SerializeField] private GridData gridData;
     [SerializeField] private GameObject cellPrefab;
-    [SerializeField] private Dictionary<Vector2Int, GameObject> grid = new Dictionary<Vector2Int, GameObject>();
+    private Dictionary<Vector2Int, GameObject> grid = new Dictionary<Vector2Int, GameObject>();
 
-    void Start()
+    void Awake()
     {
         BuildGrid();
     }
@@ -25,24 +22,36 @@ public class GridManager : MonoBehaviour
     {
         grid.Clear();
 
-        Vector2 offset = new Vector2((numOfColumns - 1) * cellSize / 2f, (numOfRows - 1) * cellSize / 2f);
-        for (int i = 0; i < numOfColumns; i++)
+        Vector2 offset = new Vector2((gridData.columns - 1) * gridData.cellSize / 2f, (gridData.rows - 1) * gridData.cellSize / 2f);
+
+        for (int i = 0; i < gridData.columns; i++)
         {
-            for (int j = 0; j < numOfRows; j++)
+            for (int j = 0; j < gridData.rows; j++)
             {
-                Vector2 position = new Vector2(i * cellSize, j * cellSize) - offset;
+                bool isCell = gridData.GetCell(j, i);
+                if (!isCell) break;
+
+                Vector2 position = new Vector2(i * gridData.cellSize, j * gridData.cellSize) - offset;
                 GameObject tile = Instantiate(cellPrefab, position, Quaternion.identity);
-                SpriteRenderer renderer = tile.GetComponent<SpriteRenderer>();
-                renderer.color = new Color32(
-                    (byte)Random.Range(0, 256),
-                    (byte)Random.Range(0, 256),
-                    (byte)Random.Range(0, 256),
-                    255
-                );
-                grid.Add(new Vector2Int(i, j), tile);
+               
+                if (tile.transform.GetChild(0).TryGetComponent<SpriteRenderer>(out SpriteRenderer renderer))
+                {
+                    renderer.color = Color.blue;
+                }
+                else
+                {
+                    Debug.Log("Renderer is not found!");
+                }
+                grid.Add(new Vector2Int(j, i), tile);
                 tile.transform.parent = transform;
             }
         }
+
+    }
+
+    public Dictionary<Vector2Int, GameObject> GetGrid()
+    {
+        return grid;
     }
 
 }
