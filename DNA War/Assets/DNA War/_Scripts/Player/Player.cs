@@ -25,7 +25,7 @@ public class Player : MonoBehaviour
     {
         grid = gridManager.GetGrid();
 
-        MoveToCell(gridPosition);
+        TeleportToCell(gridPosition);
     }
 
     private void OnEnable()
@@ -62,6 +62,14 @@ public class Player : MonoBehaviour
         {
             transform.position = tile.transform.position;
             pressureSystem.AddStep();
+        }
+    }
+
+    private void TeleportToCell(Vector2Int cell)
+    {
+        if (grid.TryGetValue(cell, out GameObject tile))
+        {
+            transform.position = tile.transform.position;
         }
     }
 

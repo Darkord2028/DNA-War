@@ -53,5 +53,23 @@ TagManager:
   - name: UI
     uniqueID: 1417437893
     locked: 0
+  - name: MonsterHands
+    uniqueID: 2337325517
+    locked: 0
+  - name: MonsterLegs
+    uniqueID: 3473139153
+    locked: 0
+  - name: MonsterBody
+    uniqueID: 1587824747
+    locked: 0
+  - name: MonsterEyes
+    uniqueID: 190105373
+    locked: 0
+  - name: MonsterMouth
+    uniqueID: 3650410549
+    locked: 0
+  - name: MonsterDetails
+    uniqueID: 1286396625
+    locked: 0
   m_RenderingLayers:
   - Default

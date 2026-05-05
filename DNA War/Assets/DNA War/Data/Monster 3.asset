@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da61077002cdce8428c64cb16fd52cde, type: 3}
+  m_Name: Monster 3
+  m_EditorClassIdentifier: Assembly-CSharp::MonsterData
+  body: {fileID: -5127889130284576867, guid: 8e9f3a494af7f7041b8167f4396be0b9, type: 3}
+  handXPos: 1
+  handYPos: -0.5
+  handZPos: 0
+  handPosRange: 0
+  legXPos: 0.5
+  legYPos: -1.5
+  legZPos: 0
+  legPosRange: 0
+  eyeXPos: 0.35
+  eyeYPos: 0.3
+  eyeZPos: 0
+  eyePosRange: 0
+  mouthXPos: 0
+  mouthYPos: -0.5
+  mouthZPos: 0
+  mouthPosRange: 0
+  detailXPos: 0.8
+  detailYPos: 1
+  detailZPos: 0
+  detailPosRange: 0
+  bodySortingOrder: 0
+  handSortingOrder: 1
+  legSortingOrder: -1
+  eyeSortingOrder: 2
+  mouthSortingOrder: 2
+  detailSortingOrder: 3
