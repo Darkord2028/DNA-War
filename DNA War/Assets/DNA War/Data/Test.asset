@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GridData
   rows: 4
   columns: 4
-  cellSize: 1
+  cellSize: 2.2
   cells: 01010101010101010101010100000001

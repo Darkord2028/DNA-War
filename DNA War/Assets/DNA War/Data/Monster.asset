@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Monster
   m_EditorClassIdentifier: Assembly-CSharp::MonsterData
   body: {fileID: 2544587629098464000, guid: dbebaae0ec9173641823832f5b37fce6, type: 3}
+  colors:
+  - bodyColor: {r: 0.43529412, g: 0.81960785, b: 0.84313726, a: 1}
+    limbColor: {r: 0.27450982, g: 0.5176471, b: 0.19607843, a: 1}
   handXPos: 1
   handYPos: -0.5
   handZPos: 0
@@ -33,9 +36,3 @@ MonoBehaviour:
   detailYPos: 1
   detailZPos: 0
   detailPosRange: 0
-  bodySortingOrder: 0
-  handSortingOrder: 1
-  legSortingOrder: -1
-  eyeSortingOrder: 2
-  mouthSortingOrder: 2
-  detailSortingOrder: 3

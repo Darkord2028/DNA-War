@@ -2661,6 +2661,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9d6c6903156d8584188ced3935ee4a12, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GridManager
+  spawner: {fileID: 2015414490}
   gridData: {fileID: 11400000, guid: 62669708a7dd4584d9e5f5a4c8c7e786, type: 2}
   cellPrefab: {fileID: 961497876279105449, guid: 75a5dbc6555628842a73c9d52925e876, type: 3}
 --- !u!4 &1198203221
@@ -3323,9 +3324,9 @@ Transform:
   m_GameObject: {fileID: 1793727752}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.19, y: 0, z: 0}
+  m_LocalPosition: {x: 14.73, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 697128879}
   - {fileID: 1150778708}
@@ -3364,7 +3365,7 @@ Transform:
   m_GameObject: {fileID: 1900326795}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 11.190001, y: 0, z: 0}
+  m_LocalPosition: {x: 19.73, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3687,6 +3688,8 @@ MonoBehaviour:
   eyeSortingOrder: MonsterEyes
   mouthSortingOrder: MonsterMouth
   detailSortingOrder: MonsterDetails
+  defaultPoolCapacity: 10
+  maxPoolSize: 30
 --- !u!4 &2015414491
 Transform:
   m_ObjectHideFlags: 0

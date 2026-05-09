@@ -3,18 +3,14 @@ using UnityEngine;
 
 public class GridManager : MonoBehaviour
 {
+    [SerializeField] private MonsterSpawner spawner;
     [SerializeField] private GridData gridData;
     [SerializeField] private GameObject cellPrefab;
     private Dictionary<Vector2Int, GameObject> grid = new Dictionary<Vector2Int, GameObject>();
 
-    void Awake()
+    void Start()
     {
         BuildGrid();
-    }
-
-    void Update()
-    {
-        
     }
 
     [ContextMenu("Build Grid")]
@@ -33,6 +29,7 @@ public class GridManager : MonoBehaviour
 
                 Vector2 position = new Vector2(i * gridData.cellSize, j * gridData.cellSize) - offset;
                 GameObject tile = Instantiate(cellPrefab, position, Quaternion.identity);
+                spawner.BuildMonster(position);
                
                 if (tile.transform.GetChild(0).TryGetComponent<SpriteRenderer>(out SpriteRenderer renderer))
                 {
