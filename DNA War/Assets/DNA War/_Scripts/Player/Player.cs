@@ -1,20 +1,16 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class Player : MonoBehaviour
 {
-    [Header("References")]
-    [SerializeField] private GridManager gridManager;
-    [SerializeField] private PressureSystem pressureSystem;
-
-    [Header("Runtime")]
-    [SerializeField] private Vector2Int gridPosition;
-
-    private Dictionary<Vector2Int, GameObject> grid;
+    [SerializeField] private MonsterSpawner spawner;
 
     private PlayerInputAction inputActions;
+    private Camera _mainCamera;
+    private Monster _targetMonster;
+    private Dictionary<int, Monster> _activeMonsters = new();
+    private bool _canSelect = false;
 
     private void Awake()
     {
@@ -23,62 +19,84 @@ public class Player : MonoBehaviour
 
     void Start()
     {
-        grid = gridManager.GetGrid();
-
-        TeleportToCell(gridPosition);
+        _mainCamera = Camera.main;
+        _activeMonsters = spawner.GetActiveMonsters();
     }
 
     private void OnEnable()
     {
         inputActions.PlayerMap.Enable();
-        inputActions.PlayerMap.Movement.performed += HandlePlayerMovement;
+        inputActions.PlayerMap.Select.performed += HandlePlayerSelect;
+        GameEvents.OnPlacementReady += HandlePlacementReady;
+        GameEvents.OnCorrectSelection += HandleCorrectSelection;
+        GameEvents.OnWrongSelection += HandleWrongSelection;
+        GameEvents.OnRoundStart += HandleRoundStart;
     }
 
     private void OnDisable()
     {
         inputActions.PlayerMap.Disable();
-        inputActions.PlayerMap.Movement.performed -= HandlePlayerMovement;
+        inputActions.PlayerMap.Select.performed -= HandlePlayerSelect;
+        GameEvents.OnPlacementReady -= HandlePlacementReady;
+        GameEvents.OnCorrectSelection -= HandleCorrectSelection;
+        GameEvents.OnWrongSelection -= HandleWrongSelection;
+        GameEvents.OnRoundStart -= HandleRoundStart;
     }
 
-    void Update()
+    private void HandleRoundStart()
     {
-        
+        _activeMonsters = spawner.GetActiveMonsters();
     }
 
-    private void TryMove(Vector2Int direction)
+    private void HandlePlacementReady()
     {
-        Vector2Int newPos = gridPosition + direction;
+        var all = new List<Monster>(_activeMonsters.Values);
+        _targetMonster = all[Random.Range(0, all.Count)];
+        GameEvents.TargetSelected(_targetMonster);
+        GameEvents.CluesReady(_targetMonster.monsterParts);
+        _canSelect = true;
+    }
 
-        if (grid.TryGetValue(newPos, out GameObject tile))
+    private void HandleCorrectSelection(float similarity)
+    {
+        Debug.Log($"Correct! Similarity: {similarity * 100f}%");
+        _canSelect = false;
+        Invoke(nameof(StartNextRound), 1.5f);
+    }
+
+    private void HandleWrongSelection(float similarity)
+    {
+        Debug.Log($"Wrong! Similarity: {similarity * 100f}%");
+    }
+
+    private void StartNextRound()
+    {
+        spawner.RebuildGrid();
+    }
+
+    private void HandlePlayerSelect(InputAction.CallbackContext context)
+    {
+        if (!_canSelect) return;
+
+        RaycastHit2D rayHit = Physics2D.GetRayIntersection(
+            _mainCamera.ScreenPointToRay(Mouse.current.position.ReadValue()));
+
+        if (!rayHit.collider) return;
+
+        foreach (var kvp in _activeMonsters)
         {
-            gridPosition = newPos;
-            MoveToCell(gridPosition);
+            Monster monster = kvp.Value;
+            if (monster.gameObject == rayHit.collider.gameObject)
+            {
+                float similarity = _targetMonster.GetSimilarity(monster);
+
+                if (monster.monsterID == _targetMonster.monsterID)
+                    GameEvents.CorrectSelection(similarity);
+                else
+                    GameEvents.WrongSelection(similarity);
+
+                return;
+            }
         }
-    }
-
-    private void MoveToCell(Vector2Int cell)
-    {
-        if (grid.TryGetValue(cell, out GameObject tile))
-        {
-            transform.position = tile.transform.position;
-            pressureSystem.AddStep();
-        }
-    }
-
-    private void TeleportToCell(Vector2Int cell)
-    {
-        if (grid.TryGetValue(cell, out GameObject tile))
-        {
-            transform.position = tile.transform.position;
-        }
-    }
-
-    private void HandlePlayerMovement(InputAction.CallbackContext context)
-    {
-        Vector2 raw = context.ReadValue<Vector2>();
-        Vector2Int input = new Vector2Int(Mathf.RoundToInt(raw.y), Mathf.RoundToInt(raw.x));
-
-        if (input != Vector2Int.zero)
-            TryMove(input);
     }
 }

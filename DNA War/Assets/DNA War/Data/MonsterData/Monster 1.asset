@@ -10,12 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: da61077002cdce8428c64cb16fd52cde, type: 3}
-  m_Name: Monster
+  m_Name: Monster 1
   m_EditorClassIdentifier: Assembly-CSharp::MonsterData
-  body: {fileID: 2544587629098464000, guid: dbebaae0ec9173641823832f5b37fce6, type: 3}
-  colors:
-  - bodyColor: {r: 0.43529412, g: 0.81960785, b: 0.84313726, a: 1}
-    limbColor: {r: 0.27450982, g: 0.5176471, b: 0.19607843, a: 1}
+  body: {fileID: -4699886904589755253, guid: e9fcd104066af804aa542ac7fc7e5a27, type: 3}
   handXPos: 1
   handYPos: -0.5
   handZPos: 0
@@ -32,7 +29,7 @@ MonoBehaviour:
   mouthYPos: -0.5
   mouthZPos: 0
   mouthPosRange: 0
-  detailXPos: 0.8
-  detailYPos: 1
+  detailXPos: 0.7
+  detailYPos: 0.7
   detailZPos: 0
   detailPosRange: 0

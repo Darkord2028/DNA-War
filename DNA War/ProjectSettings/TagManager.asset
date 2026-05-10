@@ -62,14 +62,14 @@ TagManager:
   - name: MonsterBody
     uniqueID: 1587824747
     locked: 0
+  - name: MonsterDetails
+    uniqueID: 1286396625
+    locked: 0
   - name: MonsterEyes
     uniqueID: 190105373
     locked: 0
   - name: MonsterMouth
     uniqueID: 3650410549
-    locked: 0
-  - name: MonsterDetails
-    uniqueID: 1286396625
     locked: 0
   m_RenderingLayers:
   - Default

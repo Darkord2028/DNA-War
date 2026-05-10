@@ -8,6 +8,7 @@ public class ColorPalette
     public Color bodyColor;
     public Color limbColor;
 }
+
 public class MonsterSpawner : MonoBehaviour
 {
     [Header("Monster Data")]
@@ -23,12 +24,6 @@ public class MonsterSpawner : MonoBehaviour
     [SerializeField] Sprite[] mouthSprites;
     [SerializeField] Sprite[] detailSprites;
 
-    [Header("Part Colors")]
-    [SerializeField] Color[] bodyColor;
-    [SerializeField] Color[] handColor;
-    [SerializeField] Color[] legColor;
-    [SerializeField] Color[] detailColor;
-
     [Header("Sorting Orders")]
     [SerializeField] string bodySortingOrder;
     [SerializeField] string handSortingOrder;
@@ -41,62 +36,154 @@ public class MonsterSpawner : MonoBehaviour
     [SerializeField] int defaultPoolCapacity = 10;
     [SerializeField] int maxPoolSize = 100;
 
+    [Header("Grid Settings")]
+    [SerializeField] int columnNum = 2;
+    [SerializeField] int rowNum = 2;
+    [SerializeField] int cellSize = 1;
+    [SerializeField] Sprite cellSprite;
+
     private MonsterData _data;
     private Monster _currentMonster;
     private Color _bodyColor;
     private Color _limbColor;
 
-    public Dictionary<int, Monster> activeMonsters;
+    private Dictionary<int, Monster> activeMonsters = new();
+    private Dictionary<Vector2, SpriteRenderer> grid = new();
 
-    private ObjectPool<GameObject> _gameObjectPool;
-    private int maxAttempts = 2;
-    private HashSet<int> _usedCombinations = new HashSet<int>();
+    private ObjectPool<GameObject> _tilePool;
+    private ObjectPool<GameObject> _partPool;
+    private ObjectPool<GameObject> _bodyPool;
+
+    private int maxAttempts = 20;
+    private HashSet<int> _usedCombinations = new();
 
     private void Awake()
     {
-        _gameObjectPool = new ObjectPool<GameObject>(CreateGameObjectPool, OnGetFromPool, OnReleaseToPool, OnDestroyPooled, true, defaultPoolCapacity, maxPoolSize);
+        _tilePool = new ObjectPool<GameObject>(
+            CreateTilePoolObject,
+            OnGetFromPool,
+            OnReleaseToPool,
+            OnDestroyPooled,
+            true, defaultPoolCapacity, maxPoolSize);
+
+        _partPool = new ObjectPool<GameObject>(
+            CreatePartPoolObject,
+            OnGetFromPool,
+            OnReleaseToPool,
+            OnDestroyPooled,
+            true, defaultPoolCapacity, maxPoolSize);
+
+        _bodyPool = new ObjectPool<GameObject>(
+            CreateBodyPoolObject,
+            OnGetFromPool,
+            OnReleaseToPool,
+            OnDestroyPooled,
+            true, defaultPoolCapacity, maxPoolSize);
     }
 
     private void Start()
     {
-        for(int i = 0; i < 10; i++)
+        BuildGrid();
+    }
+
+    private void BuildGrid()
+    {
+        Vector2 offset = new Vector2((columnNum - 1) * cellSize / 2f, (rowNum - 1) * cellSize / 2f);
+
+        for (int i = 0; i < columnNum; i++)
         {
-            //BuildMonster();
+            for (int j = 0; j < rowNum; j++)
+            {
+                Vector2 position = new Vector2(i * cellSize, j * cellSize) - offset;
+
+                GameObject tile = _tilePool.Get();
+                tile.name = "Tile";
+                tile.transform.SetParent(transform);
+                tile.transform.position = position;
+
+                SpriteRenderer tileRenderer = tile.GetComponent<SpriteRenderer>();
+                tileRenderer.sprite = cellSprite;
+                tileRenderer.color = Color.white;
+                tileRenderer.sortingOrder = -1;
+
+                grid.Add(new Vector2(j, i), tileRenderer);
+
+                Monster monster = BuildMonster(position);
+                if (monster == null)
+                    Debug.LogWarning($"[MonsterSpawner] Monster is null at grid ({j},{i})");
+            }
+        }
+
+        GameEvents.PlacementReady();
+    }
+
+    public void RebuildGrid()
+    {
+        ReturnAllToPool();
+
+        activeMonsters.Clear();
+        _usedCombinations.Clear();
+        grid.Clear();
+
+        GameEvents.RoundStart();
+        BuildGrid();
+    }
+
+    private void ReturnAllToPool()
+    {
+        foreach (var kvp in activeMonsters)
+        {
+            Monster monster = kvp.Value;
+            if (monster == null) continue;
+
+            GameObject monsterRoot = monster.gameObject;
+
+            List<Transform> children = new List<Transform>();
+            foreach (Transform child in monsterRoot.transform)
+                children.Add(child);
+
+            foreach (Transform child in children)
+                _partPool.Release(child.gameObject);
+
+            _bodyPool.Release(monsterRoot);
+        }
+
+        foreach (var kvp in grid)
+        {
+            SpriteRenderer tileRenderer = kvp.Value;
+            if (tileRenderer == null) continue;
+            _tilePool.Release(tileRenderer.gameObject);
         }
     }
 
-    private void BuildMonster()
+    public Dictionary<Vector2, SpriteRenderer> GetGrid() => grid;
+    public Dictionary<int, Monster> GetActiveMonsters() => activeMonsters;
+    public Sprite GetPartSprite(int category, int index)
+    {
+        return category switch
+        {
+            0 => handSprites[index],
+            1 => legSprites[index],
+            2 => eyeSprites[index],
+            3 => mouthSprites[index],
+            4 => detailSprites[index],
+            _ => null
+        };
+    }
+
+    private Monster BuildMonster(Vector3 spawnPos)
     {
         for (int i = 0; i < maxAttempts; i++)
         {
             MonsterParts parts = GenerateRandomParts();
-
             int key = GetUniqueKey(parts);
+
             if (_usedCombinations.Add(key))
-            {
-                MakeMonster(parts, Vector2.zero);
-                return;
-            }
+                return MakeMonster(parts, key, spawnPos);
         }
 
-        Debug.LogWarning("Can not generate unique monster");
-    }
-
-    public void BuildMonster(Vector3 spawnPos)
-    {
-        for (int i = 0; i < maxAttempts; i++)
-        {
-            MonsterParts parts = GenerateRandomParts();
-
-            int key = GetUniqueKey(parts);
-            if (_usedCombinations.Add(key))
-            {
-                MakeMonster(parts, spawnPos);
-                return;
-            }
-        }
-
-        Debug.LogWarning("Can not generate unique monster");
+        Debug.LogWarning("[MonsterSpawner] Could not generate a unique monster. Add more sprite or color variety.");
+        return null;
     }
 
     private MonsterParts GenerateRandomParts()
@@ -107,7 +194,9 @@ public class MonsterSpawner : MonoBehaviour
             LegIndex = Random.Range(0, legSprites.Length),
             EyeIndex = Random.Range(0, eyeSprites.Length),
             MouthIndex = Random.Range(0, mouthSprites.Length),
-            DetailIndex = Random.Range(0, detailSprites.Length)
+            DetailIndex = Random.Range(0, detailSprites.Length),
+            DataIndex = Random.Range(0, monsterData.Length),
+            ColorPaletteIndex = Random.Range(0, colors.Length)
         };
     }
 
@@ -118,42 +207,47 @@ public class MonsterSpawner : MonoBehaviour
             parts.LegIndex,
             parts.EyeIndex,
             parts.MouthIndex,
-            parts.DetailIndex
+            parts.DetailIndex,
+            parts.DataIndex,
+            parts.ColorPaletteIndex
         );
     }
 
-    private void MakeMonster(MonsterParts parts, Vector2 spawnPos)
+    private Monster MakeMonster(MonsterParts parts, int key, Vector2 spawnPos)
     {
-        _data = monsterData[Random.Range(0, monsterData.Length)];
+        _data = monsterData[parts.DataIndex];
+        _bodyColor = colors[parts.ColorPaletteIndex].bodyColor;
+        _limbColor = colors[parts.ColorPaletteIndex].limbColor;
 
-        // Root
-        GameObject monster = _gameObjectPool.Get();
-        monster.name = "monster";
-        monster.transform.position = spawnPos;
-        monster.transform.localScale = Vector3.one * 0.45f;
-        _currentMonster = monster.AddComponent<Monster>();
+        GameObject monsterRoot = _bodyPool.Get();
+        monsterRoot.name = $"Monster_{key}";
+        monsterRoot.transform.SetParent(null);
+        monsterRoot.transform.position = spawnPos;
+        monsterRoot.transform.localScale = Vector3.one * 0.45f;
+
+        _currentMonster = monsterRoot.AddComponent<Monster>();
         _currentMonster.monsterParts = parts;
-        _currentMonster.monsterID = GetUniqueKey(parts);
+        _currentMonster.monsterID = key;
 
-        int randomColorIndex = Random.Range(0, colors.Length);
-        _bodyColor = colors[randomColorIndex].bodyColor;
-        _limbColor = colors[randomColorIndex].limbColor;
+        activeMonsters[key] = _currentMonster;
 
-        MakeBody(monster);
-        MakeHands(monster, parts.HandIndex);
-        MakeLegs(monster, parts.LegIndex);
-        MakeEyes(monster, parts.EyeIndex);
-        MakeMouth(monster, parts.MouthIndex);
-        MakeDetail(monster, parts.DetailIndex);
+        MakeBody(monsterRoot);
+        MakeHands(monsterRoot, parts.HandIndex);
+        MakeLegs(monsterRoot, parts.LegIndex);
+        MakeEyes(monsterRoot, parts.EyeIndex);
+        MakeMouth(monsterRoot, parts.MouthIndex);
+        MakeDetail(monsterRoot, parts.DetailIndex);
+
+        return _currentMonster;
     }
 
     void MakeBody(GameObject monster)
     {
-        GameObject body = _gameObjectPool.Get();
-        body.name = "body";
+        GameObject body = _partPool.Get();
+        body.name = "Body";
         body.transform.SetParent(monster.transform, false);
         body.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-        SpriteRenderer sr = body.AddComponent<SpriteRenderer>();
+        SpriteRenderer sr = body.GetComponent<SpriteRenderer>();
         sr.sprite = _data.body;
         sr.color = _bodyColor;
         sr.sortingLayerName = bodySortingOrder;
@@ -164,13 +258,11 @@ public class MonsterSpawner : MonoBehaviour
         if (handSprites.Length == 0) return;
         Sprite chosen = handSprites[index];
         float nudge = Random.Range(-_data.handPosRange, _data.handPosRange);
-        Color color = handColor[Random.Range(0, handColor.Length)];
 
-        // Left
-        GameObject leftHand = _gameObjectPool.Get();
-        leftHand.name = "leftHand";
+        GameObject leftHand = _partPool.Get();
+        leftHand.name = "LeftHand";
         leftHand.transform.SetParent(monster.transform, false);
-        SpriteRenderer leftSR = leftHand.AddComponent<SpriteRenderer>();
+        SpriteRenderer leftSR = leftHand.GetComponent<SpriteRenderer>();
         leftSR.sprite = chosen;
         leftSR.color = _limbColor;
         leftSR.flipX = true;
@@ -179,11 +271,10 @@ public class MonsterSpawner : MonoBehaviour
             new Vector3(-_data.handXPos + nudge, _data.handYPos + nudge, _data.handZPos),
             Quaternion.identity);
 
-        // Right
-        GameObject rightHand = _gameObjectPool.Get();
-        rightHand.name = "rightHand";
+        GameObject rightHand = _partPool.Get();
+        rightHand.name = "RightHand";
         rightHand.transform.SetParent(monster.transform, false);
-        SpriteRenderer rightSR = rightHand.AddComponent<SpriteRenderer>();
+        SpriteRenderer rightSR = rightHand.GetComponent<SpriteRenderer>();
         rightSR.sprite = chosen;
         rightSR.color = _limbColor;
         rightSR.sortingLayerName = handSortingOrder;
@@ -197,13 +288,11 @@ public class MonsterSpawner : MonoBehaviour
         if (legSprites.Length == 0) return;
         Sprite chosen = legSprites[index];
         float nudge = Random.Range(-_data.legPosRange, _data.legPosRange);
-        Color color = legColor[Random.Range(0, legColor.Length)];
 
-        // Left
-        GameObject leftLeg = _gameObjectPool.Get();
-        leftLeg.name = "leftLeg";
+        GameObject leftLeg = _partPool.Get();
+        leftLeg.name = "LeftLeg";
         leftLeg.transform.SetParent(monster.transform, false);
-        SpriteRenderer leftSR = leftLeg.AddComponent<SpriteRenderer>();
+        SpriteRenderer leftSR = leftLeg.GetComponent<SpriteRenderer>();
         leftSR.sprite = chosen;
         leftSR.color = _limbColor;
         leftSR.flipX = true;
@@ -212,11 +301,10 @@ public class MonsterSpawner : MonoBehaviour
             new Vector3(-_data.legXPos + nudge, _data.legYPos + nudge, _data.legZPos),
             Quaternion.identity);
 
-        // Right
-        GameObject rightLeg = _gameObjectPool.Get();
-        rightLeg.name = "rightLeg";
+        GameObject rightLeg = _partPool.Get();
+        rightLeg.name = "RightLeg";
         rightLeg.transform.SetParent(monster.transform, false);
-        SpriteRenderer rightSR = rightLeg.AddComponent<SpriteRenderer>();
+        SpriteRenderer rightSR = rightLeg.GetComponent<SpriteRenderer>();
         rightSR.sprite = chosen;
         rightSR.color = _limbColor;
         rightSR.sortingLayerName = legSortingOrder;
@@ -231,11 +319,10 @@ public class MonsterSpawner : MonoBehaviour
         Sprite chosen = eyeSprites[index];
         float nudge = Random.Range(-_data.eyePosRange, _data.eyePosRange);
 
-        // Left
-        GameObject leftEye = _gameObjectPool.Get();
-        leftEye.name = "leftEye";
+        GameObject leftEye = _partPool.Get();
+        leftEye.name = "LeftEye";
         leftEye.transform.SetParent(monster.transform, false);
-        SpriteRenderer leftSR = leftEye.AddComponent<SpriteRenderer>();
+        SpriteRenderer leftSR = leftEye.GetComponent<SpriteRenderer>();
         leftSR.sprite = chosen;
         leftSR.flipX = true;
         leftSR.sortingLayerName = eyeSortingOrder;
@@ -243,11 +330,10 @@ public class MonsterSpawner : MonoBehaviour
             new Vector3(-_data.eyeXPos + nudge, _data.eyeYPos + nudge, _data.eyeZPos),
             Quaternion.identity);
 
-        // Right
-        GameObject rightEye = _gameObjectPool.Get();
-        rightEye.name = "rightEye";
+        GameObject rightEye = _partPool.Get();
+        rightEye.name = "RightEye";
         rightEye.transform.SetParent(monster.transform, false);
-        SpriteRenderer rightSR = rightEye.AddComponent<SpriteRenderer>();
+        SpriteRenderer rightSR = rightEye.GetComponent<SpriteRenderer>();
         rightSR.sprite = chosen;
         rightSR.sortingLayerName = eyeSortingOrder;
         rightEye.transform.SetLocalPositionAndRotation(
@@ -261,10 +347,10 @@ public class MonsterSpawner : MonoBehaviour
         Sprite chosen = mouthSprites[index];
         float nudge = Random.Range(-_data.mouthPosRange, _data.mouthPosRange);
 
-        GameObject mouth = _gameObjectPool.Get();
-        mouth.name = "mouth";
+        GameObject mouth = _partPool.Get();
+        mouth.name = "Mouth";
         mouth.transform.SetParent(monster.transform, false);
-        SpriteRenderer sr = mouth.AddComponent<SpriteRenderer>();
+        SpriteRenderer sr = mouth.GetComponent<SpriteRenderer>();
         sr.sprite = chosen;
         sr.sortingLayerName = mouthSortingOrder;
         mouth.transform.SetLocalPositionAndRotation(
@@ -277,59 +363,78 @@ public class MonsterSpawner : MonoBehaviour
         if (detailSprites.Length == 0) return;
         Sprite chosen = detailSprites[index];
         float nudge = Random.Range(-_data.detailPosRange, _data.detailPosRange);
-        Color color = detailColor[Random.Range(0, detailColor.Length)];
 
-        GameObject rightDetail = _gameObjectPool.Get();
-        rightDetail.name = "rightDetail";
+        GameObject rightDetail = _partPool.Get();
+        rightDetail.name = "RightDetail";
         rightDetail.transform.SetParent(monster.transform, false);
-        SpriteRenderer right_sr = rightDetail.AddComponent<SpriteRenderer>();
-        right_sr.sprite = chosen;
-        right_sr.color = _bodyColor;
-        right_sr.sortingLayerName = detailSortingOrder;
+        SpriteRenderer rightSR = rightDetail.GetComponent<SpriteRenderer>();
+        rightSR.sprite = chosen;
+        rightSR.color = _bodyColor;
+        rightSR.sortingLayerName = detailSortingOrder;
         rightDetail.transform.SetLocalPositionAndRotation(
             new Vector3(_data.detailXPos + nudge, _data.detailYPos + nudge, _data.detailZPos),
             Quaternion.identity);
 
-        GameObject leftDetail = _gameObjectPool.Get();
-        leftDetail.name = "leftDetail";
+        GameObject leftDetail = _partPool.Get();
+        leftDetail.name = "LeftDetail";
         leftDetail.transform.SetParent(monster.transform, false);
-        SpriteRenderer left_sr = leftDetail.AddComponent<SpriteRenderer>();
-        left_sr.sprite = chosen;
-        left_sr.color = _bodyColor;
-        left_sr.flipX = true;
-        left_sr.sortingLayerName = detailSortingOrder;
+        SpriteRenderer leftSR = leftDetail.GetComponent<SpriteRenderer>();
+        leftSR.sprite = chosen;
+        leftSR.color = _bodyColor;
+        leftSR.flipX = true;
+        leftSR.sortingLayerName = detailSortingOrder;
         leftDetail.transform.SetLocalPositionAndRotation(
             new Vector3(-_data.detailXPos + nudge, _data.detailYPos + nudge, _data.detailZPos),
             Quaternion.identity);
     }
 
-    // Object Pool Functions
-    private GameObject CreateGameObjectPool()
+    private GameObject CreateTilePoolObject()
     {
-        GameObject go = new GameObject("PooledMonster");
+        GameObject go = new GameObject("PooledTile");
+        go.AddComponent<SpriteRenderer>();
+        return go;
+    }
+
+    private GameObject CreatePartPoolObject()
+    {
+        GameObject go = new GameObject("PooledPart");
+        go.AddComponent<SpriteRenderer>();
+        return go;
+    }
+
+    private GameObject CreateBodyPoolObject()
+    {
+        GameObject go = new GameObject("PooledBody");
+        go.AddComponent<SpriteRenderer>();
+        BoxCollider2D collider2D = go.AddComponent<BoxCollider2D>();
+        collider2D.size = new Vector2(3f, 3f);
         return go;
     }
 
     private void OnGetFromPool(GameObject go)
     {
-        foreach(GameObject child in go.transform)
-        {
-            _gameObjectPool.Release(child);
-        }
+        go.transform.localScale = Vector3.one;
+        go.transform.localPosition = Vector3.zero;
+        go.transform.rotation = Quaternion.identity;
         go.SetActive(true);
     }
 
     private void OnReleaseToPool(GameObject go)
     {
-        if (TryGetComponent(out Monster monster))
-        {
+        if (go.TryGetComponent(out Monster monster))
             Destroy(monster);
+
+        SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            sr.sprite = null;
+            sr.color = Color.white;
+            sr.flipX = false;
         }
+
+        go.transform.SetParent(null);
         go.SetActive(false);
     }
 
-    private void OnDestroyPooled(GameObject go)
-    {
-        Destroy(go);
-    }
+    private void OnDestroyPooled(GameObject go) => Destroy(go);
 }
