@@ -31,6 +31,7 @@ public class Player : MonoBehaviour
         GameEvents.OnCorrectSelection += HandleCorrectSelection;
         GameEvents.OnWrongSelection += HandleWrongSelection;
         GameEvents.OnRoundStart += HandleRoundStart;
+        GameEvents.OnTimeUp += HandleTimeUp;
     }
 
     private void OnDisable()
@@ -41,11 +42,19 @@ public class Player : MonoBehaviour
         GameEvents.OnCorrectSelection -= HandleCorrectSelection;
         GameEvents.OnWrongSelection -= HandleWrongSelection;
         GameEvents.OnRoundStart -= HandleRoundStart;
+        GameEvents.OnTimeUp -= HandleTimeUp;
     }
 
     private void HandleRoundStart()
     {
         _activeMonsters = spawner.GetActiveMonsters();
+    }
+
+    private void HandleTimeUp()
+    {
+        _canSelect = false;
+        GameEvents.RoundEnd();
+        Invoke(nameof(StartNextRound), 1.5f);
     }
 
     private void HandlePlacementReady()
@@ -61,12 +70,16 @@ public class Player : MonoBehaviour
     {
         Debug.Log($"Correct! Similarity: {similarity * 100f}%");
         _canSelect = false;
+        GameEvents.RoundEnd();
         Invoke(nameof(StartNextRound), 1.5f);
     }
 
     private void HandleWrongSelection(float similarity)
     {
         Debug.Log($"Wrong! Similarity: {similarity * 100f}%");
+        _canSelect = false;
+        GameEvents.RoundEnd();
+        Invoke(nameof(StartNextRound), 1.5f);
     }
 
     private void StartNextRound()
