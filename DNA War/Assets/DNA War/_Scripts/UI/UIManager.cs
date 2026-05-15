@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,6 +13,7 @@ public class UIManager : MonoBehaviour
 
     [Header("Timer")]
     [SerializeField] private float roundDuration = 30f;
+    [SerializeField] private float fadeStartDelay = 1.5f;
 
     private float _timeRemaining;
     private bool _timerRunning;

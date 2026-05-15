@@ -32,15 +32,20 @@ public class MonsterSpawner : MonoBehaviour
     [SerializeField] string mouthSortingOrder;
     [SerializeField] string detailSortingOrder;
 
+    [Header("Spawn Settings")]
+    [SerializeField] Transform[] spawnPoints;
+    [SerializeField] float spawnRadius = 1f;
+    [SerializeField] int monstersPerPoint = 1;
+
+    [Header("Physics")]
+    [SerializeField] LayerMask monsterLayermask;
+    [SerializeField] float bounciness = 0.6f;
+    [SerializeField] float linearDrag = 0.5f;
+    [SerializeField] float angularDrag = 1f;
+
     [Header("Pool Settings")]
     [SerializeField] int defaultPoolCapacity = 10;
     [SerializeField] int maxPoolSize = 100;
-
-    [Header("Grid Settings")]
-    [SerializeField] int columnNum = 2;
-    [SerializeField] int rowNum = 2;
-    [SerializeField] int cellSize = 1;
-    [SerializeField] Sprite cellSprite;
 
     private MonsterData _data;
     private Monster _currentMonster;
@@ -48,69 +53,38 @@ public class MonsterSpawner : MonoBehaviour
     private Color _limbColor;
 
     private Dictionary<int, Monster> activeMonsters = new();
-    private Dictionary<Vector2, SpriteRenderer> grid = new();
 
-    private ObjectPool<GameObject> _tilePool;
     private ObjectPool<GameObject> _partPool;
-    private ObjectPool<GameObject> _bodyPool;
+    private ObjectPool<GameObject> _monsterRootPool;
 
     private int maxAttempts = 20;
     private HashSet<int> _usedCombinations = new();
 
     private void Awake()
     {
-        _tilePool = new ObjectPool<GameObject>(
-            CreateTilePoolObject,
-            OnGetFromPool,
-            OnReleaseToPool,
-            OnDestroyPooled,
-            true, defaultPoolCapacity, maxPoolSize);
-
         _partPool = new ObjectPool<GameObject>(
-            CreatePartPoolObject,
-            OnGetFromPool,
-            OnReleaseToPool,
-            OnDestroyPooled,
+            CreatePartPoolObject, OnGetFromPool, OnReleaseToPool, OnDestroyPooled,
             true, defaultPoolCapacity, maxPoolSize);
 
-        _bodyPool = new ObjectPool<GameObject>(
-            CreateBodyPoolObject,
-            OnGetFromPool,
-            OnReleaseToPool,
-            OnDestroyPooled,
+        _monsterRootPool = new ObjectPool<GameObject>(
+            CreateMonsterRootObject, OnGetFromPool, OnReleaseToPool, OnDestroyPooled,
             true, defaultPoolCapacity, maxPoolSize);
     }
 
     private void Start()
     {
-        BuildGrid();
+        Spawn();
     }
 
-    private void BuildGrid()
+    public void Spawn()
     {
-        Vector2 offset = new Vector2((columnNum - 1) * cellSize / 2f, (rowNum - 1) * cellSize / 2f);
-
-        for (int i = 0; i < columnNum; i++)
+        foreach (Transform point in spawnPoints)
         {
-            for (int j = 0; j < rowNum; j++)
+            for (int i = 0; i < monstersPerPoint; i++)
             {
-                Vector2 position = new Vector2(i * cellSize, j * cellSize) - offset;
-
-                GameObject tile = _tilePool.Get();
-                tile.name = "Tile";
-                tile.transform.SetParent(transform);
-                tile.transform.position = position;
-
-                SpriteRenderer tileRenderer = tile.GetComponent<SpriteRenderer>();
-                tileRenderer.sprite = cellSprite;
-                tileRenderer.color = Color.white;
-                tileRenderer.sortingOrder = -1;
-
-                grid.Add(new Vector2(j, i), tileRenderer);
-
-                Monster monster = BuildMonster(position);
-                if (monster == null)
-                    Debug.LogWarning($"[MonsterSpawner] Monster is null at grid ({j},{i})");
+                Vector2 offset = Random.insideUnitCircle * spawnRadius;
+                Vector3 spawnPos = point.position + new Vector3(offset.x, offset.y, 0f);
+                BuildMonster(spawnPos);
             }
         }
 
@@ -120,44 +94,14 @@ public class MonsterSpawner : MonoBehaviour
     public void RebuildGrid()
     {
         ReturnAllToPool();
-
         activeMonsters.Clear();
         _usedCombinations.Clear();
-        grid.Clear();
-
         GameEvents.RoundStart();
-        BuildGrid();
+        Spawn();
     }
 
-    private void ReturnAllToPool()
-    {
-        foreach (var kvp in activeMonsters)
-        {
-            Monster monster = kvp.Value;
-            if (monster == null) continue;
-
-            GameObject monsterRoot = monster.gameObject;
-
-            List<Transform> children = new List<Transform>();
-            foreach (Transform child in monsterRoot.transform)
-                children.Add(child);
-
-            foreach (Transform child in children)
-                _partPool.Release(child.gameObject);
-
-            _bodyPool.Release(monsterRoot);
-        }
-
-        foreach (var kvp in grid)
-        {
-            SpriteRenderer tileRenderer = kvp.Value;
-            if (tileRenderer == null) continue;
-            _tilePool.Release(tileRenderer.gameObject);
-        }
-    }
-
-    public Dictionary<Vector2, SpriteRenderer> GetGrid() => grid;
     public Dictionary<int, Monster> GetActiveMonsters() => activeMonsters;
+
     public Sprite GetPartSprite(int category, int index)
     {
         return category switch
@@ -171,18 +115,37 @@ public class MonsterSpawner : MonoBehaviour
         };
     }
 
+    private void ReturnAllToPool()
+    {
+        foreach (var kvp in activeMonsters)
+        {
+            Monster monster = kvp.Value;
+            if (monster == null) continue;
+
+            GameObject monsterRoot = monster.gameObject;
+
+            var children = new List<Transform>();
+            foreach (Transform child in monsterRoot.transform)
+                children.Add(child);
+
+            foreach (Transform child in children)
+                _partPool.Release(child.gameObject);
+
+            _monsterRootPool.Release(monsterRoot);
+        }
+    }
+
     private Monster BuildMonster(Vector3 spawnPos)
     {
         for (int i = 0; i < maxAttempts; i++)
         {
             MonsterParts parts = GenerateRandomParts();
             int key = GetUniqueKey(parts);
-
             if (_usedCombinations.Add(key))
                 return MakeMonster(parts, key, spawnPos);
         }
 
-        Debug.LogWarning("[MonsterSpawner] Could not generate a unique monster. Add more sprite or color variety.");
+        Debug.LogWarning("[MonsterSpawner] Could not generate a unique monster.");
         return null;
     }
 
@@ -203,14 +166,9 @@ public class MonsterSpawner : MonoBehaviour
     private int GetUniqueKey(MonsterParts parts)
     {
         return System.HashCode.Combine(
-            parts.HandIndex,
-            parts.LegIndex,
-            parts.EyeIndex,
-            parts.MouthIndex,
-            parts.DetailIndex,
-            parts.DataIndex,
-            parts.ColorPaletteIndex
-        );
+            parts.HandIndex, parts.LegIndex, parts.EyeIndex,
+            parts.MouthIndex, parts.DetailIndex,
+            parts.DataIndex, parts.ColorPaletteIndex);
     }
 
     private Monster MakeMonster(MonsterParts parts, int key, Vector2 spawnPos)
@@ -219,13 +177,26 @@ public class MonsterSpawner : MonoBehaviour
         _bodyColor = colors[parts.ColorPaletteIndex].bodyColor;
         _limbColor = colors[parts.ColorPaletteIndex].limbColor;
 
-        GameObject monsterRoot = _bodyPool.Get();
+        GameObject monsterRoot = _monsterRootPool.Get();
         monsterRoot.name = $"Monster_{key}";
         monsterRoot.transform.SetParent(null);
         monsterRoot.transform.position = spawnPos;
         monsterRoot.transform.localScale = Vector3.one * 0.45f;
+        monsterRoot.layer = monsterLayermask;
 
-        _currentMonster = monsterRoot.AddComponent<Monster>();
+        // Physics
+        Rigidbody2D rb = monsterRoot.GetComponent<Rigidbody2D>();
+        rb.linearDamping = linearDrag;
+        rb.angularDamping = angularDrag;
+
+        // Bounce material
+        CircleCollider2D col = monsterRoot.GetComponent<CircleCollider2D>();
+        PhysicsMaterial2D bounceMat = new PhysicsMaterial2D("Bounce");
+        bounceMat.bounciness = bounciness;
+        bounceMat.friction = 0.2f;
+        col.sharedMaterial = bounceMat;
+
+        _currentMonster = monsterRoot.GetComponent<Monster>();
         _currentMonster.monsterParts = parts;
         _currentMonster.monsterID = key;
 
@@ -237,6 +208,8 @@ public class MonsterSpawner : MonoBehaviour
         MakeEyes(monsterRoot, parts.EyeIndex);
         MakeMouth(monsterRoot, parts.MouthIndex);
         MakeDetail(monsterRoot, parts.DetailIndex);
+
+        _currentMonster.StartIdle();
 
         return _currentMonster;
     }
@@ -388,10 +361,18 @@ public class MonsterSpawner : MonoBehaviour
             Quaternion.identity);
     }
 
-    private GameObject CreateTilePoolObject()
+    private GameObject CreateMonsterRootObject()
     {
-        GameObject go = new GameObject("PooledTile");
-        go.AddComponent<SpriteRenderer>();
+        GameObject go = new GameObject("PooledMonsterRoot");
+
+        Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+        CircleCollider2D col = go.AddComponent<CircleCollider2D>();
+        col.radius = 2f;
+
+        go.AddComponent<Monster>();
         return go;
     }
 
@@ -399,15 +380,6 @@ public class MonsterSpawner : MonoBehaviour
     {
         GameObject go = new GameObject("PooledPart");
         go.AddComponent<SpriteRenderer>();
-        return go;
-    }
-
-    private GameObject CreateBodyPoolObject()
-    {
-        GameObject go = new GameObject("PooledBody");
-        go.AddComponent<SpriteRenderer>();
-        BoxCollider2D collider2D = go.AddComponent<BoxCollider2D>();
-        collider2D.size = new Vector2(3f, 3f);
         return go;
     }
 
@@ -421,15 +393,19 @@ public class MonsterSpawner : MonoBehaviour
 
     private void OnReleaseToPool(GameObject go)
     {
-        if (go.TryGetComponent(out Monster monster))
-            Destroy(monster);
-
         SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
         if (sr != null)
         {
             sr.sprite = null;
             sr.color = Color.white;
             sr.flipX = false;
+        }
+
+        Rigidbody2D rb = go.GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.angularVelocity = 0f;
         }
 
         go.transform.SetParent(null);

@@ -11,7 +11,7 @@ TagManager:
   - 
   - Water
   - UI
-  - 
+  - Player
   - 
   - 
   - 
@@ -43,6 +43,12 @@ TagManager:
     locked: 0
   - name: Grid
     uniqueID: 3682291195
+    locked: 0
+  - name: Foreground
+    uniqueID: 3059822117
+    locked: 0
+  - name: Ground
+    uniqueID: 3885548083
     locked: 0
   - name: PickUps
     uniqueID: 2177417025

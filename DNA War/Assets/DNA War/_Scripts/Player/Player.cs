@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -5,10 +6,17 @@ using UnityEngine.InputSystem;
 public class Player : MonoBehaviour
 {
     [SerializeField] private MonsterSpawner spawner;
+    [SerializeField] private float roundEndDelay = 1.5f;
+
+    [Header("Game Juice")]
+    [SerializeField] private ParticleSystem bloodParticleSystem;
+    [SerializeField] private AudioClip bloodAudio;
 
     private PlayerInputAction inputActions;
     private Camera _mainCamera;
     private Monster _targetMonster;
+    private AudioSource _audioSource;
+
     private Dictionary<int, Monster> _activeMonsters = new();
     private bool _canSelect = false;
 
@@ -20,6 +28,7 @@ public class Player : MonoBehaviour
     void Start()
     {
         _mainCamera = Camera.main;
+        _audioSource = GetComponent<AudioSource>();
         _activeMonsters = spawner.GetActiveMonsters();
     }
 
@@ -70,16 +79,21 @@ public class Player : MonoBehaviour
     {
         Debug.Log($"Correct! Similarity: {similarity * 100f}%");
         _canSelect = false;
-        GameEvents.RoundEnd();
-        Invoke(nameof(StartNextRound), 1.5f);
+        StartCoroutine(DelayRoundEnd(roundEndDelay));
     }
 
     private void HandleWrongSelection(float similarity)
     {
         Debug.Log($"Wrong! Similarity: {similarity * 100f}%");
         _canSelect = false;
+        StartCoroutine(DelayRoundEnd(roundEndDelay));
+    }
+
+    private IEnumerator DelayRoundEnd(float roundEndDelay)
+    {
+        yield return new WaitForSeconds(roundEndDelay);
         GameEvents.RoundEnd();
-        Invoke(nameof(StartNextRound), 1.5f);
+        Invoke(nameof(StartNextRound), 0.5f);
     }
 
     private void StartNextRound()
@@ -104,9 +118,19 @@ public class Player : MonoBehaviour
                 float similarity = _targetMonster.GetSimilarity(monster);
 
                 if (monster.monsterID == _targetMonster.monsterID)
+                {
                     GameEvents.CorrectSelection(similarity);
+                    bloodParticleSystem.transform.position = rayHit.collider.transform.position;
+                    bloodParticleSystem.Play();
+                    if (_audioSource && bloodAudio)
+                    {
+                        _audioSource.PlayOneShot(bloodAudio);
+                    }
+                }
                 else
+                {
                     GameEvents.WrongSelection(similarity);
+                }
 
                 return;
             }
